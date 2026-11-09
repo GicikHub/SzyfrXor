@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Szyfr XOR WASM</title>
+
+<style>
+body {
+    background: #172033;
+    color: white;
+    font-family: Arial;
+    display: flex;
+    justify-content: center;
+    padding: 40px 15px;
+}
+
+.container {
+    background: #26334a;
+    padding: 25px;
+    border-radius: 15px;
+    width: 420px;
+    max-width: 100%;
+}
+
+textarea, input, button {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 7px;
+    border: none;
+    font-size: 15px;
+}
+
+button {
+    background: #3b82f6;
+    color: white;
+    cursor: pointer;
+}
+
+pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #4ade80;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Szyfr XOR</h1>
+
+<label>Tekst:</label>
+<textarea id="tekst" rows="4"></textarea>
+
+<label>Klucz (32 bajty):</label>
+<input id="klucz" maxlength="32"
+value="12345678901234567890123456789012">
+
+<button onclick="szyfruj()">Szyfruj</button>
+<button onclick="odszyfruj()">Odszyfruj</button>
+
+<h3>Wynik:</h3>
+<pre id="wynik"></pre>
+
+</div>
+
+<script type="module">
+
+import createModule from "./xor.js";
+
+const wasm = await createModule();
+
+function getKey() {
+    const key = document.getElementById("klucz").value;
+
+    if (new TextEncoder().encode(key).length !== 32) {
+        throw new Error("Klucz musi mieć 32 bajty UTF-8!");
+    }
+
+    return key;
+}
+
+function szyfruj() {
+    try {
+        const tekst = document.getElementById("tekst").value;
+        const wynik = wasm.szyfrXOR(tekst, getKey());
+
+        // Binary data -> HEX
+        const hex = Array.from(
+            new TextEncoder().encode(wynik)
+        ).map(b => b.toString(16).padStart(2, "0")).join("");
+
+        document.getElementById("wynik").textContent = hex;
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function odszyfruj() {
+    try {
+        const hex = document.getElementById("tekst").value.trim();
+
+        if (!/^(?:[0-9a-fA-F]{2})*$/.test(hex)) {
+            throw new Error("Wpisz poprawny szyfrogram HEX!");
+        }
+
+        const bytes = new Uint8Array(
+            hex.match(/.{2}/g)?.map(x => parseInt(x, 16)) || []
+        );
+
+        const binary = String.fromCharCode(...bytes);
+        const wynik = wasm.szyfrXOR(binary, getKey());
+
+        // Decode UTF-8
+        const decoded = new TextDecoder(
+            "utf-8", {fatal: true}
+        ).decode(
+            Uint8Array.from(wynik, c => c.charCodeAt(0))
+        );
+
+        document.getElementById("wynik").textContent = decoded;
+    } catch (e) {
+        alert("Błąd: " + e.message);
+    }
+}
+
+window.szyfruj = szyfruj;
+window.odszyfruj = odszyfruj;
+
+</script>
+
+</body>
+</html>
